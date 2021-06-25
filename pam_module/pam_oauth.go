@@ -1,55 +1,74 @@
 package main
 
 import (
-  "fmt"
-  "log/syslog"
-  "runtime"
-  "strings"
+	"fmt"
+	"log/syslog"
+	"net/http"
+	"runtime"
 )
 
 type AuthResult int
+
 const (
-  AuthError AuthResult = iota
-  AuthSuccess
+	AuthError AuthResult = iota
+	AuthSuccess
 )
 
-const targetUsername = "macdit"
+const (
+	targetUsername = "oauthuser"
+	authServerURL  = "http://localhost:9096/api/authorize"
+)
 
-func pamLog(format string, args ...interface{}) {
-  l, err := syslog.New(syslog.LOG_AUTH|syslog.LOG_WARNING, "pam-oauth2")
-  if err != nil {
-    return
-  }
-  l.Warning(fmt.Sprintf(format, args...))
+func sendAuthRequest(token string) bool {
+	client := http.Client{}
+	req, err := http.NewRequest(http.MethodGet, authServerURL, nil)
+
+	query := req.URL.Query()
+	query.Add("access_token", token)
+	req.URL.RawQuery = query.Encode()
+
+	resp, err := client.Do(req)
+	if err != nil {
+		pamLog("authentication request error: %s\n", err.Error())
+		return false
+	}
+
+	defer func() {
+		if resp != nil {
+			resp.Body.Close()
+		}
+	}()
+
+	if resp.StatusCode == http.StatusOK {
+		return true
+	}
+
+	return false
 }
 
-func pamAuthenticate(username string, argv []string) AuthResult {
-  runtime.GOMAXPROCS(1)
+func pamLog(format string, args ...interface{}) {
+	l, err := syslog.New(syslog.LOG_AUTH|syslog.LOG_WARNING, "pam-oauth2")
+	if err != nil {
+		return
+	}
+	l.Warning(fmt.Sprintf(format, args...))
+}
 
-  if username != targetUsername {
-    pamLog("user %s is not interesting\n", username)
-    return AuthSuccess
-  }
+func pamAuthenticate(username string, token string) AuthResult {
+	runtime.GOMAXPROCS(1)
 
-  if len(argv) == 0 {
-    pamLog("empty args list")
-    return AuthError
-  }
+	if username != targetUsername {
+		pamLog("user %s is not interesting\n", username)
+		return AuthSuccess
+	}
 
-  opt := strings.Split(argv[0], "=")
-  switch opt[0] {
-  case "access_token":
-    token := opt[1]
-    if sendAuthRequest(token) {
-      pamLog("successfully authorized with token: %s\n", token)
-      return AuthSuccess
-    }
-    pamLog("failed to authorize with token: %s\n", token)
-  default:
-    pamLog("unkown option: %s\n", opt[0])
-  }
+	if sendAuthRequest(token) {
+		pamLog("successfully authorized with token: %s\n", token)
+		return AuthSuccess
+	}
+	pamLog("failed to authorize with token: %s\n", token)
 
-  return AuthError
+	return AuthError
 }
 
 func main() {}
