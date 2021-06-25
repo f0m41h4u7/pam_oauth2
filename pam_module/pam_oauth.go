@@ -1,16 +1,8 @@
 package main
 
 import (
-  "bufio"
-  "bytes"
-  "crypto/rand"
   "fmt"
-  "io"
-  "io/ioutil"
   "log/syslog"
-  "net"
-  "os"
-  "path"
   "runtime"
   "strings"
 )
@@ -31,35 +23,7 @@ func pamLog(format string, args ...interface{}) {
   l.Warning(fmt.Sprintf(format, args...))
 }
 
-func authenticate(w io.Writer, uid int, username, ca string, principals map[string]struct{}) AuthResult {
-    for _, p := range cert.ValidPrincipals {
-      if _, ok := principals[p]; ok {
-        pamLog("Authentication succeded for %s. Matched principal %s, cert %d",
-          cert.ValidPrincipals[0], p, cert.Serial)
-        return AuthSuccess
-      }
-    }
-  }
-  pamLog("no valid certs found")
-  return AuthError
-}
-
-func loadValidPrincipals(principals string) (map[string]struct{}, error) {
-  f, err := os.Open(principals)
-  if err != nil {
-    return nil, err
-  }
-  defer f.Close()
-
-  p := make(map[string]struct{})
-  scanner := bufio.NewScanner(f)
-  for scanner.Scan() {
-    p[scanner.Text()] = struct{}{}
-  }
-  return p, nil
-}
-
-func pamAuthenticate(w io.Writer, username string, argv []string) AuthResult {
+func pamAuthenticate(username string, argv []string) AuthResult {
   runtime.GOMAXPROCS(1)
 
   if username != targetUsername {
@@ -72,7 +36,7 @@ func pamAuthenticate(w io.Writer, username string, argv []string) AuthResult {
     return AuthError
   }
 
-  opt := strings.Split(arg, "=")
+  opt := strings.Split(argv[0], "=")
   switch opt[0] {
   case "access_token":
     token := opt[1]
