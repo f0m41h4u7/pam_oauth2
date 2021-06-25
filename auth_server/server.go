@@ -28,11 +28,7 @@ func main() {
 	ginserver.SetClientInfoHandler(server.ClientFormHandler)
 
 	router := gin.Default()
-
-	//	auth := router.Group("/oauth2")
-	//{
 	router.GET("/token", ginserver.HandleTokenRequest)
-	//	}
 
 	api := router.Group("/api")
 	{
